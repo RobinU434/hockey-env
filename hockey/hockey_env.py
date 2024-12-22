@@ -119,9 +119,7 @@ class HockeyEnv(gym.Env, EzPickle):
     'render_fps': FPS
   }
 
-  continuous = False
-
-  def __init__(self, keep_mode: bool=True, mode: int | str | Mode = Mode.NORMAL, verbose: bool=False):
+  def __init__(self, keep_mode: bool=True, mode: int | str | Mode = Mode.NORMAL, verbose: bool=False, continuous: bool = False):
     """
       Build and environment instance
 
@@ -130,6 +128,8 @@ class HockeyEnv(gym.Env, EzPickle):
             This can be changed later using the reset function. Defaults to True.
         mode (int | str | Mode, optional): mode: is the game mode: NORMAL (0),
             TRAIN_SHOOTING (1), TRAIN_DEFENSE (2). Defaults to Mode.NORMAL.
+        continuous (bool, optional): continuous action space or discrete action space
+        seed (int, optional): seed for environment. If none is given it will be a random random seed. Defaults to None
         verbose (bool, optional): Verbose logging. Defaults to False.
         """
     EzPickle.__init__(self)
@@ -140,6 +140,9 @@ class HockeyEnv(gym.Env, EzPickle):
     self.isopen = True
     self.mode = mode
     self.keep_mode = keep_mode
+    self.continuous = continuous
+    self.verbose = verbose
+
     self.player1_has_puck = 0
     self.player2_has_puck = 0
 
@@ -180,31 +183,19 @@ class HockeyEnv(gym.Env, EzPickle):
     # Keep Puck Mode
     # 16 time left player has puck
     # 17 time left other player has puck
-    self.observation_space = spaces.Box(-np.inf, np.inf, shape=(18,), dtype=np.float32)
+    self.observation_space = spaces.Box(-np.inf, np.inf, shape=(18,), dtype=np.float32, seed=self.seed)
 
     # linear force in (x,y)-direction and torque
-    self.num_actions = 3 if not self.keep_mode else 4
-    self.action_space = spaces.Box(-1, +1, (self.num_actions * 2,), dtype=np.float32)
+    self.action_dim = 3 if not self.keep_mode else 4
+    self.action_space = self._get_action_space()
+    
+    self.reset(self.one_starts, seed=self.seed)
 
-    # see discrete_to_continous_action()
-    self.discrete_action_space = spaces.Discrete(7)
-
-    self.verbose = verbose
-
-    self.reset(self.one_starts)
-
-  def set_seed(self, seed: int=None):
-    """set seed. If no argument provided or seed=None. Set a random seed
-
-      Args:
-        seed (int, optional): seed. Defaults to None.
-
-      Returns:
-        List[int]: in list embedded seed
-    """
-    self.np_random, seed = seeding.np_random(seed)
-    self._seed = seed
-    return [seed]
+  def _get_action_space(self) -> spaces.Space:
+    if self.continuous:
+      return spaces.Box(-1, +1, (self.action_dim * 2,), dtype=np.float32, seed=self.seed)
+    else:
+      return spaces.MultiDiscrete(np.ones(2) * self.action_dim, seed=self.seed)
 
   def _destroy(self):
     if self.player1 is None: return
@@ -402,7 +393,7 @@ class HockeyEnv(gym.Env, EzPickle):
         Tuple[np.ndarray, Dict[str, Any]]: observation, info dictionary
     """
     self._destroy()
-    self.set_seed(seed)
+    self.seed = seed
     self.world.contactListener_keepref = ContactDetector(self, verbose=self.verbose)
     self.world.contactListener = self.world.contactListener_keepref
     self.done = False
@@ -717,7 +708,7 @@ class HockeyEnv(gym.Env, EzPickle):
 
 
 
-  def discrete_to_continous_action(self, discrete_action: int) -> np.ndarray:
+  def discrete_to_continuous_action(self, discrete_action: int) -> np.ndarray:
     """converts discrete actions into continuous ones (for each player)
     The actions allow only one operation each timestep, e.g. X or Y or angle change.
 
@@ -749,7 +740,7 @@ class HockeyEnv(gym.Env, EzPickle):
       action_cont.append((discrete_action == 7) * 1.0)
 
     return action_cont
-
+    
   def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
     """apply action to environment
 
@@ -769,8 +760,11 @@ class HockeyEnv(gym.Env, EzPickle):
     Returns:
       Tuple[np.ndarray, float, bool, bool, dict[str, Any]]: observation, reward, done, truncated, info
     """
-    action = np.clip(action, -1, +1).astype(np.float32)
+    if not self.continuous:
+      action = np.concat([self.discrete_to_continuous_action(action[0]), self.discrete_to_continuous_action(action[0])])
+    
 
+    action = np.clip(action, -1, +1).astype(np.float32)
     self._apply_translation_action_with_max_speed(self.player1, action[:2], 10, True)
     self._apply_rotation_action_with_max_speed(self.player1, action[2])
     player2_idx = 3 if not self.keep_mode else 4
@@ -901,6 +895,29 @@ class HockeyEnv(gym.Env, EzPickle):
         raise ValueError(f"{value} is not a valid value for {Mode.__name__}")
     else:
       raise TypeError("Input value must be an Enum, name (str), or value (int)")
+
+  @property
+  def seed(self) -> int:
+    """get seed
+
+    Returns:
+        int: seed
+    """
+    return self._seed
+
+  @seed.setter
+  def seed(self, value: int):
+    """set seed. If no argument provided or seed=None. Set a random seed
+
+      Args:
+        seed (int, optional): seed. Defaults to None.
+
+      Returns:
+        List[int]: in list embedded seed
+    """
+    self.np_random, seed = seeding.np_random(value)
+    self._seed = seed
+    return [seed]
 
 class BasicOpponent():
   def __init__(self, weak=True, keep_mode=True):
