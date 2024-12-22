@@ -11,32 +11,9 @@ from gymnasium import spaces
 from gymnasium.error import DependencyNotInstalled
 from gymnasium.utils import seeding, EzPickle
 from enum import Enum
-
+from hockey.config import FPS, SCALE, VIEWPORT_W, VIEWPORT_H, W, H, CENTER_X, CENTER_Y, ZONE, MAX_ANGLE, MAX_TIME_KEEP_PUCK, GOAL_SIZE, RACKETPOLY, RACKETFACTOR, FORCEMULTIPLIER, SHOOTFORCEMULTIPLIER, TORQUEMULTIPLIER, MAX_PUCK_SPEED
 # import pyglet
 # from pyglet import gl
-
-FPS = 50
-SCALE = 60.0  # affects how fast-paced the game is, forces should be adjusted as well (Don't touch)
-
-VIEWPORT_W = 600
-VIEWPORT_H = 480
-W = VIEWPORT_W / SCALE
-H = VIEWPORT_H / SCALE
-CENTER_X = W / 2
-CENTER_Y = H / 2
-ZONE = W / 20
-MAX_ANGLE = math.pi / 3  # Maximimal angle of racket
-MAX_TIME_KEEP_PUCK = 15
-GOAL_SIZE = 75
-
-RACKETPOLY = [(-10, 20), (+5, 20), (+5, -20), (-10, -20), (-18, -10), (-21, 0), (-18, 10)]
-RACKETFACTOR = 1.2
-
-FORCEMULTIPLIER = 6000
-SHOOTFORCEMULTIPLIER = 60
-TORQUEMULTIPLIER = 400
-MAX_PUCK_SPEED = 25
-
 
 def dist_positions(p1, p2):
   return np.sqrt(np.sum(np.asarray(p1 - p2) ** 2, axis=-1))
@@ -133,7 +110,6 @@ class HockeyEnv(gym.Env, EzPickle):
         verbose (bool, optional): Verbose logging. Defaults to False.
         """
     EzPickle.__init__(self)
-    self.set_seed()
     self.screen = None
     self.clock = None
     self.surf = None
@@ -198,7 +174,8 @@ class HockeyEnv(gym.Env, EzPickle):
       return spaces.MultiDiscrete(np.ones(2) * self.action_dim, seed=self.seed)
 
   def _destroy(self):
-    if self.player1 is None: return
+    if self.player1 is None: 
+      return
     self.world.contactListener = None
     self.world.DestroyBody(self.player1)
     self.player1 = None
