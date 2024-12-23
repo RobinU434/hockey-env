@@ -96,7 +96,7 @@ class HockeyEnv(gym.Env, EzPickle):
     'render_fps': FPS
   }
 
-  def __init__(self, keep_mode: bool=True, mode: int | str | Mode = Mode.NORMAL, verbose: bool=False, continuous: bool = False):
+  def __init__(self, keep_mode: bool=True, mode: int | str | Mode = Mode.NORMAL, continuous: bool = False, seed: int = None, verbose: bool=False):
     """
       Build and environment instance
 
@@ -114,6 +114,7 @@ class HockeyEnv(gym.Env, EzPickle):
     self.clock = None
     self.surf = None
     self.isopen = True
+    self.seed = seed
     self.mode = mode
     self.keep_mode = keep_mode
     self.continuous = continuous
